@@ -1,0 +1,403 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS Fargate Lab - Foundation Infrastructure (VPC, Networking, EC2 Dev Instance)'
+
+Resources:
+  # ====================================================
+  # VPC & NETWORKING
+  # ====================================================
+  
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-vpc
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-igw
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnets
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-public-subnet-1
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-public-subnet-2
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  # Private Subnets
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-private-subnet-1
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.12.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-private-subnet-2
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  # NAT Gateway
+  NATGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-nat-eip
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-nat-gateway
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-public-rt
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-private-rt
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ====================================================
+  # SECURITY GROUPS
+  # ====================================================
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ecs-fargate-lab-alb-sg
+      GroupDescription: Security group for ALB - Allow HTTP from Internet
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTP from Internet
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3002
+          CidrIp: 10.0.0.0/16
+          Description: Allow traffic to ECS tasks on ports 3000-3002
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-alb-sg
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ecs-fargate-lab-ecs-sg
+      GroupDescription: Security group for ECS tasks - Allow traffic from ALB and between services
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3002
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: Allow traffic from ALB on ports 3000-3002
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-ecs-sg
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  # Allow ECS tasks to communicate with each other (service-to-service)
+  ECSServiceToServiceIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ECSSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3000
+      ToPort: 3002
+      SourceSecurityGroupId: !Ref ECSSecurityGroup
+      Description: Allow service-to-service communication on ports 3000-3002
+
+  # ====================================================
+  # IAM ROLES FOR ECS FARGATE
+  # ====================================================
+
+  # Task Execution Role - Used by ECS to pull images and write logs
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecs-fargate-lab-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-task-execution-role
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+  # Task Role - Used by application code to access AWS services (DynamoDB)
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecs-fargate-lab-task-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/TodoItems'
+      Tags:
+        - Key: Name
+          Value: ecs-fargate-lab-task-role
+        - Key: Project
+          Value: ecs-fargate-lab
+        - Key: Environment
+          Value: dev
+        - Key: Owner
+          Value: workshop
+
+
+# ====================================================
+# OUTPUTS
+# ====================================================
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCId'
+
+  PublicSubnet1Id:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet1Id'
+
+  PublicSubnet2Id:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet2Id'
+
+  PrivateSubnet1Id:
+    Description: Private Subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet1Id'
+
+  PrivateSubnet2Id:
+    Description: Private Subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet2Id'
+
+  ALBSecurityGroupId:
+    Description: ALB Security Group ID (for future use)
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-ALBSecurityGroupId'
+
+  ECSSecurityGroupId:
+    Description: ECS Security Group ID
+    Value: !Ref ECSSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-ECSSecurityGroupId'
+
+  ECSTaskExecutionRoleArn:
+    Description: ECS Task Execution Role ARN
+    Value: !GetAtt ECSTaskExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ECSTaskExecutionRoleArn'
+
+  ECSTaskRoleArn:
+    Description: ECS Task Role ARN (with DynamoDB access)
+    Value: !GetAtt ECSTaskRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ECSTaskRoleArn'
