@@ -1,0 +1,42 @@
+{
+  "family": "frontend-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecs-fargate-lab-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecs-fargate-lab-task-role",
+  "containerDefinitions": [
+    {
+      "name": "frontend-service",
+      "image": "kevinndevops/todo-app:frontend-1.2.0",
+      "portMappings": [
+        {
+          "name": "frontend",
+          "containerPort": 3000,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "environment": [
+        {
+          "name": "READ_SERVICE_URL",
+          "value": "http://todo-read-service.todo.local:3001"
+        },
+        {
+          "name": "WRITE_SERVICE_URL",
+          "value": "http://todo-write-service.todo.local:3002"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/frontend-service",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "essential": true
+    }
+  ]
+}

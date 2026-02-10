@@ -1,0 +1,42 @@
+{
+  "family": "todo-read-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecs-fargate-lab-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecs-fargate-lab-task-role",
+  "containerDefinitions": [
+    {
+      "name": "todo-read-service",
+      "image": "kevinndevops/todo-app:read-1.0.0",
+      "portMappings": [
+        {
+          "name": "read-service",
+          "containerPort": 3001,
+          "protocol": "tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DYNAMODB_TABLE",
+          "value": "TodoItems"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "ap-southeast-1"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/todo-read-service",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "essential": true
+    }
+  ]
+}
